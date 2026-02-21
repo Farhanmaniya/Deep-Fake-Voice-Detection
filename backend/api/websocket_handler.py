@@ -9,7 +9,7 @@ from backend.core.audio_processor import (
 )
 from backend.core.feature_extractor import extract_features_async
 from backend.core.model_loader import get_model, get_temporal_model, is_mock_model
-from backend.core.inference_engine import run_inference, run_consensus_inference
+from backend.core.inference_engine import run_consensus_inference
 from backend.core.risk_engine import RiskEngine
 from backend.core.vad import detect_voice_activity
 from backend.core.rate_limiter import RateLimiter
