@@ -8,8 +8,8 @@ from backend.core.audio_processor import (
     ensure_mono_16khz
 )
 from backend.core.feature_extractor import extract_features_async
-from backend.core.model_loader import get_model
-from backend.core.inference_engine import run_inference
+from backend.core.model_loader import get_model, get_temporal_model, is_mock_model
+from backend.core.inference_engine import run_inference, run_consensus_inference
 from backend.core.risk_engine import RiskEngine
 from backend.core.vad import detect_voice_activity
 from backend.core.rate_limiter import RateLimiter
@@ -17,7 +17,6 @@ from backend.core.metrics import metrics
 from backend.core.explainability import build_explainability
 from backend.core.attribution import build_attribution
 from backend.core.robustness import build_robustness_analysis, inject_noise
-from backend.core.model_loader import is_mock_model
 from backend.core.feature_extractor import (
     extract_mel_spectrogram,
     extract_mfcc,
@@ -34,8 +33,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Load model once at module level (singleton)
+# Load models once at module level (singleton)
 model = get_model(settings.MODEL_PATH)
+temporal_model = get_temporal_model()
 
 @router.websocket("/ws/audio")
 async def websocket_endpoint(websocket: WebSocket):
@@ -178,8 +178,38 @@ async def websocket_endpoint(websocket: WebSocket):
                     # Mock or fallback models use Mel Spectrogram
                     inference_features = mel_features
                 
-                # Step 7: Run inference
-                inference_result = await run_inference(inference_features, model)
+                # Step 6b: Prepare features for Temporal LSTM model
+                lstm_features = None
+                if temporal_model:
+                    # LSTM expects 64 mels, normalized
+                    lstm_mel = await asyncio.to_thread(
+                        extract_mel_spectrogram,
+                        audio,
+                        settings.SAMPLE_RATE,
+                        n_mels=64,
+                        hop_length=settings.HOP_LENGTH,
+                        n_fft=settings.N_FFT
+                    )
+                    # Normalize logic must match train_temporal_model.py
+                    import librosa
+                    lstm_mel_db = librosa.power_to_db(lstm_mel, ref=1.0)
+                    lstm_mel_db = np.clip(lstm_mel_db, -80, 0)
+                    lstm_features = (lstm_mel_db + 40.0) / 40.0
+                    # Pad/Trim to 128 frames
+                    max_frames = 128
+                    if lstm_features.shape[1] < max_frames:
+                        lstm_features = np.pad(lstm_features, ((0, 0), (0, max_frames - lstm_features.shape[1])), mode='constant')
+                    else:
+                        lstm_features = lstm_features[:, :max_frames]
+                    lstm_features = lstm_features.T # (time, mels)
+                
+                # Step 7: Run Consensus Inference
+                inference_result = await run_consensus_inference(
+                    inference_features, 
+                    lstm_features, 
+                    model, 
+                    temporal_model
+                )
                 metrics.record_inference()
                 
                 # Step 8: Build explainability data from mel spectrogram
@@ -220,6 +250,11 @@ async def websocket_endpoint(websocket: WebSocket):
                     "explainability": explainability_data,
                     "attribution": attribution_data,
                     "robustness": robustness_data,
+                    "consensus": {
+                        "cnn_score": inference_result.get("cnn_probability"),
+                        "lstm_score": inference_result.get("lstm_probability"),
+                        "is_active": inference_result.get("consensus_active", False)
+                    }
                 }
                 
                 # Record metrics

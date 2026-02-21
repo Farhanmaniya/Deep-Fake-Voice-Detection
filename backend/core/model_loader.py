@@ -1,10 +1,12 @@
 import torch
+import torch.nn as nn
 import numpy as np
 import logging
 from pathlib import Path
 from typing import Union, NamedTuple
 from sklearn.preprocessing import StandardScaler
 from backend.core.deepfake_cnn import DeepfakeCNN
+from backend.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -97,23 +99,59 @@ def load_model(model_path: str) -> Union[RealModelContainer, MockModel]:
         logger.info("Using mock model for testing")
         return MockModel()
 
-# Singleton model instance
+# Singleton model instances
 _model_instance = None
+_temporal_model_instance = None
 
 def get_model(model_path: str):
-    """
-    Get singleton model instance.
-    
-    Args:
-        model_path: Path to model file
-    
-    Returns:
-        Model instance (singleton)
-    """
+    """Get legacy CNN singleton."""
     global _model_instance
     if _model_instance is None:
         _model_instance = load_model(model_path)
     return _model_instance
+
+def get_temporal_model():
+    """Load the LSTM temporal model as a singleton."""
+    global _temporal_model_instance
+    if _temporal_model_instance is None:
+        path = Path(settings.TEMPORAL_MODEL_PATH)
+        if not path.exists():
+            logger.warning(f"Temporal model not found at {path}. Using None.")
+            return None
+            
+        try:
+            from backend.core.deepfake_cnn import DeepfakeCNN # Not needed but good for imports
+            # Architecture must match train_temporal_model.py
+            # Re-defining here locally to avoid circular imports or missing definitions
+            class TemporalLSTM(nn.Module):
+                def __init__(self, input_size=64, hidden_size=256, num_layers=3):
+                    super().__init__()
+                    import torch.nn as nn
+                    self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=0.3)
+                    self.fc = nn.Sequential(
+                        nn.Linear(hidden_size, 128),
+                        nn.ReLU(),
+                        nn.BatchNorm1d(128),
+                        nn.Dropout(0.3),
+                        nn.Linear(128, 64),
+                        nn.ReLU(),
+                        nn.Linear(64, 1),
+                        nn.Sigmoid()
+                    )
+                def forward(self, x):
+                    _, (hn, _) = self.lstm(x)
+                    return self.fc(hn[-1])
+
+            model = TemporalLSTM().to(torch.device("cpu")) # Default to CPU
+            model.load_state_dict(torch.load(str(path), map_location="cpu", weights_only=True))
+            model.eval()
+            _temporal_model_instance = model
+            logger.info("✅ Temporal LSTM model loaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to load temporal model: {e}")
+            _temporal_model_instance = None
+            
+    return _temporal_model_instance
 
 def is_mock_model(model) -> bool:
     """

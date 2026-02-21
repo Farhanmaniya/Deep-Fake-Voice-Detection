@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     MAX_CHUNKS_PER_SECOND: int = 10
     CHUNK_OVERLAP_SAMPLES: int = 1600  # 100ms at 16kHz
     ROBUSTNESS_SNR_THRESHOLD: float = 15.0  # dB
+    
+    # Feature 4: Consensus Settings
+    TEMPORAL_MODEL_PATH: str = "models/temporal_lstm.pth"
+    # Weight given to CNN vs LSTM in the final score (e.g., 0.7 = 70% CNN)
+    CONSENSUS_CNN_WEIGHT: float = 0.7
+    
     APP_VERSION: str = "1.0.0"
 
     class Config:

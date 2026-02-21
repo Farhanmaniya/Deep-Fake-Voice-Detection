@@ -53,48 +53,60 @@ def _run_inference_sync(features: Union[np.ndarray, torch.Tensor], model) -> flo
     
     return probability
 
-async def run_inference(features: np.ndarray, model) -> dict:
+def _run_temporal_inference_sync(features: np.ndarray, model) -> float:
+    """Run secondary LSTM inference."""
+    if model is None:
+        return 0.5 # Neutral fallback
+        
+    # Features already normalized in training script logic
+    # Expected shape: (time, mels) -> (1, time, mels) for batch
+    features_tensor = torch.from_numpy(features).float().unsqueeze(0)
+    
+    with torch.no_grad():
+        output = model(features_tensor)
+        probability = output.item()
+        
+    return float(np.clip(probability, 0, 1))
+
+async def run_consensus_inference(
+    cnn_features: torch.Tensor, 
+    lstm_features: np.ndarray, 
+    cnn_model, 
+    lstm_model
+) -> dict:
     """
-    Async wrapper for model inference to prevent event loop blocking.
-    
-    Args:
-        features: Log-Mel spectrogram features (n_mels, time_frames)
-        model: Loaded model (TorchScript or Mock)
-    
-    Returns:
-        Dictionary containing:
-            - chunk_probability: float [0, 1]
-            - inference_latency_ms: float
+    Runs both models and returns a weighted consensus.
     """
     start_time = time.time()
     
     try:
-        # Run inference in thread pool to avoid blocking
-        probability = await asyncio.to_thread(
-            _run_inference_sync,
-            features,
-            model
-        )
+        # Run CNN in parallel with LSTM
+        cnn_prob_task = asyncio.to_thread(_run_inference_sync, cnn_features, cnn_model)
+        lstm_prob_task = asyncio.to_thread(_run_temporal_inference_sync, lstm_features, lstm_model)
         
-        inference_time = (time.time() - start_time) * 1000  # ms
+        cnn_prob, lstm_prob = await asyncio.gather(cnn_prob_task, lstm_prob_task)
         
-        logger.info(
-            f"Inference complete: probability={probability:.4f}, "
-            f"latency={inference_time:.2f}ms"
-        )
+        # Calculate Weighted Consensus
+        # If LSTM is None, rely 100% on CNN
+        if lstm_model is None:
+            final_prob = cnn_prob
+        else:
+            w = settings.CONSENSUS_CNN_WEIGHT
+            final_prob = (cnn_prob * w) + (lstm_prob * (1 - w))
+            
+        latency = (time.time() - start_time) * 1000
         
         return {
-            "chunk_probability": round(probability, 4),
-            "inference_latency_ms": round(inference_time, 2)
+            "chunk_probability": round(float(final_prob), 4),
+            "cnn_probability": round(float(cnn_prob), 4),
+            "lstm_probability": round(float(lstm_prob), 4),
+            "inference_latency_ms": round(latency, 2),
+            "consensus_active": lstm_model is not None
         }
-    
-    except Exception as e:
-        inference_time = (time.time() - start_time) * 1000
-        logger.error(f"Inference failed: {e}")
         
-        # Return neutral probability on error
+    except Exception as e:
+        logger.error(f"Consensus inference failed: {e}")
         return {
             "chunk_probability": 0.5,
-            "inference_latency_ms": round(inference_time, 2),
             "error": str(e)
         }
