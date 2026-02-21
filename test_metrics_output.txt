@@ -1,0 +1,21 @@
+WARNING:backend.core.model_loader:Model file not found: models/deepfake_detector.pt
+INFO:backend.core.model_loader:Using mock model for testing
+WARNING:backend.core.model_loader:\u26a0\ufe0f  Using MOCK MODEL - predictions are random!
+WARNING:backend.core.model_loader:   Place a real TorchScript model at the configured MODEL_PATH
+INFO:httpx:HTTP Request: GET http://testserver/metrics "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET http://testserver/metrics "HTTP/1.1 200 OK"
+INFO:backend.core.risk_engine:RiskEngine initialized: window_size=10, thresholds=[LOW<0.3, MEDIUM<0.7, HIGH\u22650.7], smoothing_factor=0.3
+INFO:backend.core.rate_limiter:RateLimiter initialized: max_rate=10 chunks/sec
+INFO:backend.api.websocket_handler:Received 3200 bytes
+INFO:backend.api.websocket_handler:Converted to numpy array: 1600 samples
+INFO:backend.api.websocket_handler:Applied overlap: new length = 1600 samples
+WARNING:backend.core.audio_processor:Audio signal is near-silent, skipping normalization
+INFO:backend.api.websocket_handler:Silence detected: energy=0.000000 < threshold=0.01
+INFO:httpx:HTTP Request: GET http://testserver/metrics "HTTP/1.1 200 OK"
+INFO:backend.api.websocket_handler:Client disconnected normally
+INFO:httpx:HTTP Request: GET http://testserver/metrics "HTTP/1.1 200 OK"
+
+Metrics Response Structure: {'active_connections': 0, 'total_chunks_processed': 0, 'total_inference_calls': 0, 'total_errors': 0, 'average_latency_ms': 0.0, 'uptime_seconds': 0.16, 'chunks_per_second': 0.0, 'model_mode': 'mock'}
+Client connected. Active connections: 1
+Client disconnected. Active connections: 0
+Final Metrics: {'active_connections': 0, 'total_chunks_processed': 0, 'total_inference_calls': 0, 'total_errors': 0, 'average_latency_ms': 0.0, 'uptime_seconds': 0.18, 'chunks_per_second': 0.0, 'model_mode': 'mock'}

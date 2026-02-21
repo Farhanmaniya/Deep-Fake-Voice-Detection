@@ -1,0 +1,11 @@
+fastapi
+websocket
+uvicorn
+pydantic
+pydantic-settings
+websockets
+numpy
+librosa
+soundfile
+torch
+aiohttp

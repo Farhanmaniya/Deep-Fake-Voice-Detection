@@ -1,0 +1,15 @@
+WARNING:backend.core.model_loader:Model file not found: models/deepfake_detector.pt
+INFO:backend.core.model_loader:Using mock model for testing
+WARNING:backend.core.model_loader:\u26a0\ufe0f  Using MOCK MODEL - predictions are random!
+WARNING:backend.core.model_loader:   Place a real TorchScript model at the configured MODEL_PATH
+INFO:backend.api.health_handler:Health check endpoint called
+INFO:httpx:HTTP Request: GET http://testserver/health "HTTP/1.1 200 OK"
+INFO:backend.core.risk_engine:RiskEngine initialized: window_size=10, thresholds=[LOW<0.3, MEDIUM<0.7, HIGH\u22650.7], smoothing_factor=0.3
+INFO:backend.core.rate_limiter:RateLimiter initialized: max_rate=10 chunks/sec
+INFO:backend.api.health_handler:Health check endpoint called
+INFO:httpx:HTTP Request: GET http://testserver/health "HTTP/1.1 200 OK"
+INFO:backend.api.websocket_handler:Client disconnected normally
+INFO:backend.api.health_handler:Health check endpoint called
+INFO:httpx:HTTP Request: GET http://testserver/health "HTTP/1.1 200 OK"
+Client connected. Active connections: 1
+Client disconnected. Active connections: 0

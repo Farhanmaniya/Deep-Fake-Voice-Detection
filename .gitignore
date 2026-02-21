@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+.env
+venv/
+ENV/
+
+# Model Files (Keep the repaired one, ignore the original directory if present)
+models/deepfake_voice_detector.pth/
+# Note: models/deepfake_voice_detector_repaired.pth is the real model we want to keep
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs & Debug
+*.log
+pytest_*.txt
+debug_load.py
+repair_model.py

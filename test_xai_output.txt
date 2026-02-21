@@ -1,0 +1,25 @@
+WARNING:backend.core.model_loader:Model file not found: models/deepfake_detector.pt
+INFO:backend.core.model_loader:Using mock model for testing
+WARNING:backend.core.model_loader:\u26a0\ufe0f  Using MOCK MODEL - predictions are random!
+WARNING:backend.core.model_loader:   Place a real TorchScript model at the configured MODEL_PATH
+INFO:backend.core.risk_engine:RiskEngine initialized: window_size=10, thresholds=[LOW<0.3, MEDIUM<0.7, HIGH\u22650.7], smoothing_factor=0.3
+INFO:backend.core.rate_limiter:RateLimiter initialized: max_rate=10 chunks/sec
+INFO:backend.api.websocket_handler:Received 32000 bytes
+INFO:backend.api.websocket_handler:Converted to numpy array: 16000 samples
+INFO:backend.api.websocket_handler:Applied overlap: new length = 16000 samples
+INFO:backend.core.feature_extractor:Feature extraction complete: shape=(128, 32), duration=1.00s, latency=4.95ms
+INFO:backend.core.inference_engine:Inference complete: probability=0.7307, latency=30.61ms
+INFO:backend.core.risk_engine:Risk updated: raw_prob=0.7307, smoothed_prob=0.7307, rolling_risk=0.7307, level=HIGH, buffer_size=1/10
+INFO:backend.api.websocket_handler:Client disconnected normally
+=== Unit Tests ===
+Band energies: {'sub_bass': -7.425099849700928, 'mid': -7.401599884033203, 'high': -7.09660005569458, 'ultra_high': -6.8632001876831055}
+Spectral flatness: 0.5633
+Temporal risk: [0.75, 0.5254, 0.5253, 0.4683, 0.5079, 0.5333, 0.4978, 0.6858]
+Suspicious band: ultra_high
+Full build: {'band_energies': {'sub_bass': -7.425099849700928, 'mid': -7.401599884033203, 'high': -7.09660005569458, 'ultra_high': -6.8632001876831055}, 'spectral_flatness': 0.5633, 'suspicious_band': 'ultra_high', 'temporal_risk': [0.75, 0.5254, 0.5253, 0.4683, 0.5079, 0.5333, 0.4978, 0.6858]}
+
+=== Integration Test ===
+Client connected. Active connections: 1
+Client disconnected. Active connections: 0
+Response keys: ['status', 'feature_shape', 'audio_duration_sec', 'chunk_probability', 'rolling_risk', 'risk_level', 'processing_latency_ms', 'energy_level', 'explainability']
+Explainability: {'band_energies': {'sub_bass': -20.635900497436523, 'mid': -23.081100463867188, 'high': -22.87540054321289, 'ultra_high': -22.595800399780273}, 'spectral_flatness': 0.0981, 'suspicious_band': 'sub_bass', 'temporal_risk': [0.7307, 0.4894, 0.4868, 0.482, 0.5008, 0.521, 0.5214, 0.5969]}
