@@ -9,3 +9,6 @@ librosa
 soundfile
 torch
 aiohttp
+scikit-learn
+scipy
+python-multipart

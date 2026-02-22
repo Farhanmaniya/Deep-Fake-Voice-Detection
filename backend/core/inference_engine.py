@@ -4,8 +4,41 @@ import asyncio
 import logging
 import time
 from typing import Union
+import torch.nn as nn
+import torch.nn.functional as F
+from backend.config.settings import settings
 
 logger = logging.getLogger(__name__)
+
+# New Architecture Components
+class Attention(nn.Module):
+    def __init__(self, hidden_size):
+        super(Attention, self).__init__()
+        self.attention = nn.Linear(hidden_size, 1)
+
+    def forward(self, x):
+        weights = self.attention(x)
+        weights = F.softmax(weights, dim=1)
+        context = torch.sum(weights * x, dim=1)
+        return context, weights
+
+class TemporalModel(nn.Module):
+    def __init__(self, input_size=64, hidden_size=128, num_layers=2):
+        super(TemporalModel, self).__init__()
+        self.gru = nn.GRU(input_size, hidden_size, num_layers, batch_first=True, bidirectional=True, dropout=0.2)
+        self.attention = Attention(hidden_size * 2)
+        self.fc = nn.Sequential(
+            nn.Linear(hidden_size * 2, 64),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(64, 1),
+            nn.Sigmoid()
+        )
+        
+    def forward(self, x):
+        gru_out, _ = self.gru(x)
+        context, _ = self.attention(gru_out)
+        return self.fc(context)
 
 def _run_inference_sync(features: Union[np.ndarray, torch.Tensor], model) -> float:
     """
@@ -18,12 +51,14 @@ def _run_inference_sync(features: Union[np.ndarray, torch.Tensor], model) -> flo
     Returns:
         Probability score [0, 1]
     """
-    # If features are already a tensor (e.g. prepared MFCC), use as is
-    if isinstance(features, torch.Tensor):
-        features_tensor = features
+    # Convert numpy to torch tensor and handle batch dimension
+    if not isinstance(features, torch.Tensor):
+        features_tensor = torch.from_numpy(features).float()
+        # Only add batch dimension if not already present
+        if features_tensor.ndim < 4:
+            features_tensor = features_tensor.unsqueeze(0)
     else:
-        # Convert numpy to torch tensor and add batch dimension
-        features_tensor = torch.from_numpy(features).float().unsqueeze(0)
+        features_tensor = features
     
     # Ensure tensor is on the same device as the model
     from backend.core.model_loader import RealModelContainer
@@ -54,7 +89,7 @@ def _run_inference_sync(features: Union[np.ndarray, torch.Tensor], model) -> flo
     return probability
 
 def _run_temporal_inference_sync(features: np.ndarray, model) -> float:
-    """Run secondary LSTM inference."""
+    """Run secondary Bi-GRU + Attention inference."""
     if model is None:
         return 0.5 # Neutral fallback
         
@@ -105,8 +140,28 @@ async def run_consensus_inference(
         }
         
     except Exception as e:
-        logger.error(f"Consensus inference failed: {e}")
+        print(f"CRITICAL: Consensus inference failed: {e}")
+        import traceback
+        traceback.print_exc()
+        logger.error(f"Consensus inference failed: {e}", exc_info=True)
         return {
             "chunk_probability": 0.5,
+            "cnn_probability": 0.5,
+            "lstm_probability": 0.5,
+            "inference_latency_ms": 0,
+            "consensus_active": False,
             "error": str(e)
         }
+async def run_inference(features: np.ndarray, model) -> dict:
+    """Async wrapper for single model inference (backward compatibility)."""
+    start_time = time.time()
+    try:
+        probability = await asyncio.to_thread(_run_inference_sync, features, model)
+        latency = (time.time() - start_time) * 1000
+        return {
+            "chunk_probability": round(probability, 4),
+            "inference_latency_ms": round(latency, 2)
+        }
+    except Exception as e:
+        logger.error(f"Inference failed: {e}")
+        return {"chunk_probability": 0.5, "error": str(e)}

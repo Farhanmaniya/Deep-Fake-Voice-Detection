@@ -122,31 +122,39 @@ def get_temporal_model():
         try:
             from backend.core.deepfake_cnn import DeepfakeCNN # Not needed but good for imports
             # Architecture must match train_temporal_model.py
-            # Re-defining here locally to avoid circular imports or missing definitions
-            class TemporalLSTM(nn.Module):
-                def __init__(self, input_size=64, hidden_size=256, num_layers=3):
+            import torch.nn.functional as F
+            class Attention(nn.Module):
+                def __init__(self, hidden_size):
                     super().__init__()
-                    import torch.nn as nn
-                    self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=0.3)
+                    self.attention = nn.Linear(hidden_size, 1)
+                def forward(self, x):
+                    weights = self.attention(x)
+                    weights = F.softmax(weights, dim=1)
+                    context = torch.sum(weights * x, dim=1)
+                    return context, weights
+
+            class TemporalModel(nn.Module):
+                def __init__(self, input_size=64, hidden_size=128, num_layers=2):
+                    super().__init__()
+                    self.gru = nn.GRU(input_size, hidden_size, num_layers, batch_first=True, bidirectional=True, dropout=0.2)
+                    self.attention = Attention(hidden_size * 2)
                     self.fc = nn.Sequential(
-                        nn.Linear(hidden_size, 128),
+                        nn.Linear(hidden_size * 2, 64),
                         nn.ReLU(),
-                        nn.BatchNorm1d(128),
-                        nn.Dropout(0.3),
-                        nn.Linear(128, 64),
-                        nn.ReLU(),
+                        nn.Dropout(0.2),
                         nn.Linear(64, 1),
                         nn.Sigmoid()
                     )
                 def forward(self, x):
-                    _, (hn, _) = self.lstm(x)
-                    return self.fc(hn[-1])
+                    gru_out, _ = self.gru(x)
+                    context, _ = self.attention(gru_out)
+                    return self.fc(context)
 
-            model = TemporalLSTM().to(torch.device("cpu")) # Default to CPU
+            model = TemporalModel().to(torch.device("cpu"))
             model.load_state_dict(torch.load(str(path), map_location="cpu", weights_only=True))
             model.eval()
             _temporal_model_instance = model
-            logger.info("✅ Temporal LSTM model loaded successfully")
+            logger.info("✅ Temporal Bi-GRU + Attention model loaded successfully")
         except Exception as e:
             logger.error(f"Failed to load temporal model: {e}")
             _temporal_model_instance = None

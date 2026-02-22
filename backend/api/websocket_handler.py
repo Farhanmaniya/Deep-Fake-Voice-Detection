@@ -55,8 +55,10 @@ async def websocket_endpoint(websocket: WebSocket):
     # Create rate limiter for this connection
     rate_limiter = RateLimiter(settings.MAX_CHUNKS_PER_SECOND)
     
-    # Initialize overlap buffer for this connection
+    # Initialize buffers for this connection
     overlap_buffer = np.array([], dtype=np.float32)
+    temporal_audio_buffer = np.array([], dtype=np.float32)
+    MAX_TEMPORAL_SAMPLES = settings.SAMPLE_RATE * 2 # 2 seconds of history
     
     try:
         while True:
@@ -123,12 +125,23 @@ async def websocket_endpoint(websocket: WebSocket):
                 
                 # Step 5: Voice Activity Detection
                 is_voice, energy = detect_voice_activity(audio, settings.VAD_ENERGY_THRESHOLD)
+                
+                # Update temporal history even if it's silence (to maintain context rhythm)
+                temporal_audio_buffer = np.concatenate([temporal_audio_buffer, audio])
+                if len(temporal_audio_buffer) > MAX_TEMPORAL_SAMPLES:
+                    temporal_audio_buffer = temporal_audio_buffer[-MAX_TEMPORAL_SAMPLES:]
+
                 if not is_voice:
-                    logger.info(f"Silence detected: energy={energy:.6f} < threshold={settings.VAD_ENERGY_THRESHOLD}")
+                    # logger.info(f"Silence detected: energy={energy:.6f} < threshold={settings.VAD_ENERGY_THRESHOLD}")
                     await manager.send_json({
-                        "status": "silence",
-                        "message": "No voice activity detected",
-                        "energy_level": round(energy, 6)
+                        "status": "success",
+                        "is_silence": true,
+                        "message": "Analysing background noise...",
+                        "energy_level": round(energy, 6),
+                        "chunk_probability": 0.0,
+                        "cnn_probability": 0.0,
+                        "lstm_probability": 0.0,
+                        "rolling_risk": 0.0
                     }, websocket)
                     continue
                 
@@ -182,9 +195,10 @@ async def websocket_endpoint(websocket: WebSocket):
                 lstm_features = None
                 if temporal_model:
                     # LSTM expects 64 mels, normalized
+                    # Use the 2-second history for better temporal context
                     lstm_mel = await asyncio.to_thread(
                         extract_mel_spectrogram,
-                        audio,
+                        temporal_audio_buffer,
                         settings.SAMPLE_RATE,
                         n_mels=64,
                         hop_length=settings.HOP_LENGTH,
@@ -251,8 +265,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     "attribution": attribution_data,
                     "robustness": robustness_data,
                     "consensus": {
-                        "cnn_score": inference_result.get("cnn_probability"),
-                        "lstm_score": inference_result.get("lstm_probability"),
+                        "cnn_score": inference_result.get("cnn_probability", 0.0),
+                        "lstm_score": inference_result.get("lstm_probability", 0.0),
                         "is_active": inference_result.get("consensus_active", False)
                     }
                 }
@@ -260,6 +274,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 # Record metrics
                 metrics.record_chunk(total_latency)
                 
+                logger.info(f"Consensus Scores: CNN={response['consensus']['cnn_score']}, LSTM={response['consensus']['lstm_score']}")
                 await manager.send_json(response, websocket)
                 
             except Exception as e:

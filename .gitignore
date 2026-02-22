@@ -12,9 +12,14 @@ build/
 venv/
 ENV/
 
-# Model Files (Keep the repaired one, ignore the original directory if present)
-models/deepfake_voice_detector.pth/
-# Note: models/deepfake_voice_detector_repaired.pth is the real model we want to keep
+# Model Files (Keep the repaired one, ignore the training data)
+models/deepfake_voice_detector.pth
+models/archive/
+# Keep models/deepfake_voice_detector_repaired.pth
+# Keep models/temporal_lstm.pth
+
+# Preserved Work
+frontend_ai/
 
 # OS
 .DS_Store
@@ -24,5 +29,13 @@ desktop.ini
 # Logs & Debug
 *.log
 pytest_*.txt
+test_*.txt
+*.mp3
+*.wav
 debug_load.py
 repair_model.py
+
+# Frontend dependencies
+node_modules/
+frontend/node_modules/
+frontend_ai/node_modules/

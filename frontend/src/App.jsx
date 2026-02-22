@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 
-const DEFAULT_API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8001'
+const DEFAULT_API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000'
 const WS_URL =
   import.meta.env.VITE_WS_URL ||
   DEFAULT_API_BASE.replace(/^http/i, 'ws') + '/ws/audio'
@@ -16,6 +16,7 @@ function App() {
   const [health, setHealth] = useState(null)
   const [metrics, setMetrics] = useState(null)
   const [error, setError] = useState('')
+  const [detectionHistory, setDetectionHistory] = useState([])
 
   const wsRef = useRef(null)
   const audioContextRef = useRef(null)
@@ -145,6 +146,21 @@ function App() {
             if (next.length > 60) next.shift()
             return next
           })
+
+          // Forensic Logging: Record events where risk > 70%
+          if (data.chunk_probability > 0.7) {
+            setDetectionHistory(prev => {
+              const newEvent = {
+                id: Date.now(),
+                time: new Date().toLocaleTimeString(),
+                score: Math.round(data.chunk_probability * 100),
+                generator: data.attribution?.suspected_generator || 'Unknown',
+                band: data.explainability?.suspicious_band || 'Wideband'
+              }
+              const next = [newEvent, ...prev]
+              return next.slice(0, 10) // Keep last 10 detections
+            })
+          }
         } catch {}
       }
 
@@ -224,6 +240,7 @@ function App() {
               riskColor={riskColor}
               riskHistory={riskHistory}
               consensus={consensus}
+              isSilence={lastResult?.is_silence}
             />
           </section>
           <section className="panel panel-side">
@@ -241,6 +258,43 @@ function App() {
           <section className="panel">
             <RobustnessView robustness={robustness} />
           </section>
+        </section>
+
+        <section className="panel panel-log">
+          <div className="panel-header">
+            <h2>Forensic Audit Log</h2>
+            <p>Persistent record of high-confidence synthetic detections.</p>
+          </div>
+          <div className="log-table-wrapper">
+            <table className="log-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Risk Score</th>
+                  <th>Suspected Source</th>
+                  <th>Primary Indicator</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detectionHistory.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" className="log-empty">No malicious activity detected in current session.</td>
+                  </tr>
+                ) : (
+                  detectionHistory.map(item => (
+                    <tr key={item.id} className="log-row">
+                      <td>{item.time}</td>
+                      <td><span className="log-score">{item.score}%</span></td>
+                      <td>{item.generator}</td>
+                      <td>{item.band} Artifacts</td>
+                      <td><span className="badge-alert">SPOOF DETECTED</span></td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </section>
       </main>
     </div>
@@ -305,7 +359,7 @@ function StreamController({ connectionStatus, isStreaming, toggleStreaming, erro
   )
 }
 
-function RiskView({ probability, rollingRisk, riskLevel, riskColor, riskHistory, consensus }) {
+function RiskView({ probability, rollingRisk, riskLevel, riskColor, riskHistory, consensus, isSilence }) {
   const percent = Math.round(probability * 100)
   const rollingPercent = rollingRisk != null ? Math.round(rollingRisk * 100) : null
   const cnnPercent = consensus?.cnn_score != null ? Math.round(consensus.cnn_score * 100) : null
@@ -325,7 +379,7 @@ function RiskView({ probability, rollingRisk, riskLevel, riskColor, riskHistory,
               />
               <div className="risk-gauge-center">
                 <span className="risk-value">{percent}</span>
-                <span className="risk-label">Deepfake score</span>
+                <span className="risk-label">{isSilence ? 'Listening...' : 'Deepfake score'}</span>
               </div>
             </div>
           </div>
@@ -343,10 +397,10 @@ function RiskView({ probability, rollingRisk, riskLevel, riskColor, riskHistory,
           <div className="risk-signals-row">
             <span className="risk-signals-label">Signals</span>
             <span className="risk-signals-values">
-              <span>Chunk {percent}%</span>
-              {rollingPercent != null && <span>Rolling {rollingPercent}%</span>}
-              {cnnPercent != null && <span>CNN {cnnPercent}%</span>}
-              {lstmPercent != null && <span>LSTM {lstmPercent}%</span>}
+              <span className="risk-signal-item">Chunk {percent}%</span>
+              {rollingPercent != null && <span className="risk-signal-item">Rolling {rollingPercent}%</span>}
+              {cnnPercent != null && <span className="risk-signal-item">CNN {cnnPercent}%</span>}
+              {lstmPercent != null && <span className="risk-signal-item">Consensus {lstmPercent}%</span>}
             </span>
           </div>
           <div className="risk-bars">
@@ -362,7 +416,7 @@ function RiskView({ probability, rollingRisk, riskLevel, riskColor, riskHistory,
               color="#38bdf8"
             />
             <label className="risk-bar-label">
-              Temporal LSTM
+              Temporal AI (Consensus)
               <span className="risk-bar-value">
                 {lstmPercent != null ? lstmPercent : 0}
                 <span className="risk-bar-unit">%</span>

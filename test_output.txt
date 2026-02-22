@@ -1,8 +1,0 @@
-WARNING:backend.core.model_loader:Model file not found: models/deepfake_detector.pt
-INFO:backend.core.model_loader:Using mock model for testing
-WARNING:backend.core.model_loader:\u26a0\ufe0f  Using MOCK MODEL - predictions are random!
-WARNING:backend.core.model_loader:   Place a real TorchScript model at the configured MODEL_PATH
-INFO:backend.api.health_handler:Health check endpoint called
-INFO:httpx:HTTP Request: GET http://testserver/health "HTTP/1.1 200 OK"
-
-Health Check Response: {'status': 'degraded', 'model_mode': 'mock', 'active_connections': 0, 'version': '1.0.0', 'timestamp': '2026-02-20T17:46:32.726803+00:00'}

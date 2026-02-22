@@ -1,7 +1,7 @@
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    SERVER_HOST: str = "0.0.0.0"
+    SERVER_HOST: str = "127.0.0.1"
     SERVER_PORT: int = 8000
     MAX_CHUNK_SIZE: int = 1024 * 1024  # 1MB
     ALLOWED_ORIGINS: list[str] = ["*"]
@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     RISK_THRESHOLD_HIGH: float = 0.7
     
     # Phase 4: Robustness Settings
-    VAD_ENERGY_THRESHOLD: float = 0.01
+    VAD_ENERGY_THRESHOLD: float = 0.0001
     PREDICTION_SMOOTHING_FACTOR: float = 0.3
     MAX_CHUNKS_PER_SECOND: int = 10
     CHUNK_OVERLAP_SAMPLES: int = 1600  # 100ms at 16kHz
@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     # Feature 4: Consensus Settings
     TEMPORAL_MODEL_PATH: str = "models/temporal_lstm.pth"
     # Weight given to CNN vs LSTM in the final score (e.g., 0.7 = 70% CNN)
-    CONSENSUS_CNN_WEIGHT: float = 0.7
+    CONSENSUS_CNN_WEIGHT: float = 0.8
     
     APP_VERSION: str = "1.0.0"
 
